@@ -6,33 +6,18 @@ import {
   clearGallery,
   showLoader,
   hideLoader,
+  showLoadMoreButton,
+  hideLoadMoreButton,
 } from './js/render-functions.js';
 
 const searchForm = document.querySelector('.form');
 const galleryContainer = document.querySelector('.gallery');
 const loadMoreBtn = document.querySelector('.load-more-btn');
-const resultsCountEl = document.querySelector('.results-count');
-const apiLimitNotice = document.querySelector('.api-limit-notice');
 
 let query = '';
 let page = 1;
-const per_page = 40;
-
-function showLoadMoreBtn() {
-  loadMoreBtn.classList.remove('is-hidden');
-}
-
-function hideLoadMoreBtn() {
-  loadMoreBtn.classList.add('is-hidden');
-}
-
-function showApiLimitNotice() {
-  apiLimitNotice.classList.remove('is-hidden');
-}
-
-function hideApiLimitNotice() {
-  apiLimitNotice.classList.add('is-hidden');
-}
+const per_page = 15;
+let totalPages = 0;
 
 searchForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -41,45 +26,38 @@ searchForm.addEventListener('submit', async event => {
 
   if (!query) {
     iziToast.error({
-      title: 'Ошибка',
-      message: 'Поле поиска не может быть пустым!',
+      title: 'Error',
+      message: 'Search query cannot be empty!',
       position: 'topRight',
     });
     return;
   }
 
   clearGallery();
-  hideLoadMoreBtn();
+  hideLoadMoreButton();
   showLoader();
-  resultsCountEl.textContent = '';
-  hideApiLimitNotice();
 
   try {
-    const data = await getImagesByQuery(query, page, per_page);
+    const data = await getImagesByQuery(query, page);
+    totalPages = Math.ceil(data.totalHits / per_page);
+
     if (data.hits.length === 0) {
       iziToast.warning({
-        title: 'Нет результатов',
+        title: 'No Results',
         message:
-          'К сожалению, нет изображений, соответствующих вашему запросу.',
+          'Sorry, there are no images matching your search query. Please try again!',
         position: 'topRight',
       });
     } else {
       createGallery(data.hits);
-      resultsCountEl.textContent = `Found ${data.totalHits} images.`;
-      const totalPages = Math.ceil(data.totalHits / per_page);
       if (page < totalPages) {
-        showLoadMoreBtn();
-      } else if (data.totalHits > 0) {
-        hideLoadMoreBtn();
-        if (data.totalHits >= 500) {
-          showApiLimitNotice();
-        }
+        showLoadMoreButton();
       }
     }
   } catch (error) {
     iziToast.error({
-      title: 'Ошибка',
-      message: `Что-то пошло не так: ${error.message}`,
+      title: 'Error',
+      message: `Something went wrong: ${error.message}`,
       position: 'topRight',
     });
   } finally {
@@ -90,25 +68,21 @@ searchForm.addEventListener('submit', async event => {
 
 loadMoreBtn.addEventListener('click', async () => {
   page += 1;
-  hideLoadMoreBtn();
+  hideLoadMoreButton();
   showLoader();
 
   try {
-    const data = await getImagesByQuery(query, page, per_page);
-    createGallery(data.hits, true);
-    const totalPages = Math.ceil(data.totalHits / per_page);
-    if (page < totalPages) {
-      showLoadMoreBtn();
-    } else {
-      hideLoadMoreBtn();
+    const data = await getImagesByQuery(query, page);
+    createGallery(data.hits);
+
+    if (page >= totalPages) {
       iziToast.info({
-        title: 'Конец',
-        message: 'Вы достигли конца результатов поиска.',
+        title: 'End of Results',
+        message: "We're sorry, but you've reached the end of search results.",
         position: 'topRight',
       });
-      if (data.totalHits >= 500) {
-        showApiLimitNotice();
-      }
+    } else {
+      showLoadMoreButton();
     }
 
     const { height: cardHeight } =
@@ -119,8 +93,8 @@ loadMoreBtn.addEventListener('click', async () => {
     });
   } catch (error) {
     iziToast.error({
-      title: 'Ошибка',
-      message: `Что-то пошло не так: ${error.message}`,
+      title: 'Error',
+      message: `Something went wrong: ${error.message}`,
       position: 'topRight',
     });
   } finally {
